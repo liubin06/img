@@ -8,55 +8,49 @@ import cv2
 import numpy as np
 
 
-class CIFAR10Pair(CIFAR10):
-    def __init__(self, root, train=True, transform=None, target_transform=None,download=True):
-        super().__init__(root, train=train, transform=transform,target_transform=target_transform, download=download)
-        selected_indices = [self.targets[i] in {0,1} for i in range(len(self.targets))]
+class CIFARSelf(CIFAR10):
+    def __init__(self, root='../data', train=True, transform=None, classes = None): #子类属性
+        super().__init__(root=root, train=train, transform= transform)    #父类属性
+        selected_indices = [id for id in range(len(self.targets)) if self.targets[id] in classes]
         self.data = self.data[selected_indices]
-        self.targets = [self.targets[i] for i in selected_indices]
+        self.targets = [self.targets[id] for id in selected_indices]
 
     def __getitem__(self, index):
         img, target = self.data[index], self.targets[index]
         img = Image.fromarray(img)
-
-        if self.transform is not None:
-            pos_1 = self.transform(img)
-            pos_2 = self.transform(img)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
+        pos_1 = self.transform(img)
+        pos_2 = self.transform(img)
 
         return pos_1, pos_2, target
 
 
-class CIFAR100Pair_true_label(CIFAR100):
+class CIFARSup(CIFAR10):
     # dataloader where pairs of positive samples are randomly sampled from pairs
     # of inputs with the same label.
-    def __init__(self, root='../data', train=True, transform=None):
-        super().__init__(root=root, train=train, transform=transform)
+    def __init__(self, root='../data', train=True, transform=None, classes=None):
+        super().__init__(root=root, train=train,transform= transform)
 
-        def get_labels(i):
-            return [index for index in range(len(self)) if self.targets[index] == i]
+        selected_indices = [id for id in range(len(self.targets)) if self.targets[id] in classes]
+        self.data = self.data[selected_indices]
+        self.targets = [self.targets[id] for id in selected_indices]
 
-        self.label_index = [get_labels(i) for i in range(100)]
 
     def __getitem__(self, index):
         img1, target = self.data[index], self.targets[index]
 
-        index_example_same_label = sample(self.label_index[self.targets[index]], 1)[0]
+        index_example_same_label = sample(self.get_labels(target), 1)[0]
         img2 = self.data[index_example_same_label]
 
         img1 = Image.fromarray(img1)
         img2 = Image.fromarray(img2)
 
-        if self.transform is not None:
-            pos_1 = self.transform(img1)
-            pos_2 = self.transform(img2)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
+        pos_1 = self.transform(img1)
+        pos_2 = self.transform(img2)
 
         return pos_1, pos_2, target
+
+    def get_labels(self,i):
+        return [index for index in range(len(self.targets)) if self.targets[index] == i]
 
 
 
@@ -96,19 +90,17 @@ test_transform = transforms.Compose([
     transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010])])
 
 
-def get_dataset(dataset_name, root='../data', pair=True):
-    if dataset_name == 'cifar10':
-        train_data = CIFAR10Pair(root=root, train=True, transform=train_transform)
-        memory_data = CIFAR10Pair(root=root, train=True, transform=test_transform)
-        test_data = CIFAR10Pair(root=root, train=False, transform=test_transform)
+def get_dataset(dataset_name, classes, root='../data'):
+    if dataset_name == 'self':
+        train_data = CIFARSelf(root=root, train=True, transform=train_transform, classes=classes)
+        memory_data = CIFARSelf(root=root, train=True, transform=test_transform, classes=classes)
+        test_data = CIFARSelf(root=root, train=False, transform=test_transform, classes=classes)
 
-    elif dataset_name == 'cifar100_true_label':
-        train_data = CIFAR100Pair_true_label(root=root, train=True, transform=train_transform)
-        memory_data = CIFAR100Pair_true_label(root=root, train=True, transform=test_transform)
-        test_data = CIFAR100Pair_true_label(root=root, train=False, transform=test_transform)
+    elif dataset_name == 'sup':
+        train_data = CIFARSup(root=root, train=True, transform=train_transform, classes=classes)
+        memory_data = CIFARSup(root=root, train=True, transform=test_transform, classes=classes)
+        test_data = CIFARSup(root=root, train=False, transform=test_transform, classes=classes)
     else:
         raise Exception('Invalid dataset name')
 
     return train_data, memory_data, test_data
-data=CIFAR10Pair('../data')
-print(data[0])
