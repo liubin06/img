@@ -70,13 +70,13 @@ def train(net, data_loader, train_optimizer, temperature):
 
 
 # test for one epoch, use weighted knn to find the most similar images' label to assign the test image
-def test(net, memory_data_loader, test_data_loader):
+def test(net, memory_data_loader, test_data_loader,subclasses):
     net.eval()
     total_top1, total_top5, total_num, feature_bank = 0.0, 0.0, 0, []
-    c,k = 2,2
+    c,k = len(subclasses),2
     with torch.no_grad():
         # generate feature bank
-        for data, _, target in tqdm(memory_data_loader, desc='Feature extracting'):
+        for data, target in tqdm(memory_data_loader, desc='Feature extracting'):
             feature, out = net(data.cuda(non_blocking=True))
             feature_bank.append(feature)
         # [D, N]
@@ -85,7 +85,7 @@ def test(net, memory_data_loader, test_data_loader):
         feature_labels = torch.tensor(memory_data_loader.dataset.targets, device=feature_bank.device)
         # loop test data to predict the label by weighted knn search
         test_bar = tqdm(test_data_loader)
-        for data, _, target in test_bar:
+        for data, target in test_bar:
             data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
             feature, out = net(data)
 
@@ -107,7 +107,7 @@ def test(net, memory_data_loader, test_data_loader):
 
             pred_labels = pred_scores.argsort(dim=-1, descending=True)
             total_top1 += torch.sum((pred_labels[:, :1] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
-            total_top5 += torch.sum((pred_labels[:, :5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
+            total_top5 += torch.sum((pred_labels[:, :2] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
             test_bar.set_description('KNN Test Epoch: [{}/{}] Acc@1:{:.2f}% Acc@5:{:.2f}%'
                                      .format(epoch, epochs, total_top1 / total_num * 100, total_top5 / total_num * 100))
 
@@ -151,7 +151,7 @@ if __name__ == '__main__':
 
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
-        accuracy = test(model, memory_loader, test_loader)
+        accuracy = test(model, memory_loader, test_loader,args.classes)
 
         if epoch >= 300:
             if epoch % 20 == 0:
