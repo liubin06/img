@@ -28,7 +28,7 @@ class CIFARSelf(CIFAR10):
             return pos_1, target
 
 
-class CIFARSup(CIFAR10):
+class CIFARSuppair(CIFAR10):
     # dataloader where pairs of positive samples are randomly sampled from pairs
     # of inputs with the same label.
     def __init__(self, root='../data', train=True,  classes=None, phase=None):
@@ -55,14 +55,8 @@ class CIFARSup(CIFAR10):
         else:
             pos_1 = test_transform(img1)
             return pos_1, target
-
-
     def get_labels(self,i):
         return [index for index in range(len(self.targets)) if self.targets[index] == i]
-
-
-
-
 
 class GaussianBlur(object):
     # Implements Gaussian blur as described in the SimCLR paper
@@ -104,10 +98,10 @@ def get_dataset(dataset_name, classes, root='../data'):
         memory_data = CIFARSelf(root=root, train=True, classes=classes, phase='test')
         test_data = CIFARSelf(root=root, train=False, classes=classes, phase='test')
 
-    elif dataset_name == 'sup':
-        train_data = CIFARSup(root=root, train=True, classes=classes,phase='train')
-        memory_data = CIFARSup(root=root, train=True, classes=classes,phase='test')
-        test_data = CIFARSup(root=root, train=False,  classes=classes,phase='test')
+    elif dataset_name == 'suppair':
+        train_data = CIFARSuppair(root=root, train=True, classes=classes,phase='train')
+        memory_data = CIFARSuppair(root=root, train=True, classes=classes,phase='test')
+        test_data = CIFARSuppair(root=root, train=False,  classes=classes,phase='test')
     else:
         raise Exception('Invalid dataset name')
 

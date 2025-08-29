@@ -76,7 +76,7 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
     c,k = len(subclasses),2
     with torch.no_grad():
         # generate feature bank
-        for data, target in tqdm(memory_data_loader, desc='Feature extracting'):
+        for data, target in tqdm(memory_data_loader):
             feature, out = net(data.cuda(non_blocking=True))
             feature_bank.append(feature)
         # [D, N]
@@ -108,7 +108,7 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
             pred_labels = pred_scores.argsort(dim=-1, descending=True)
             total_top1 += torch.sum((pred_labels[:, :1] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
             total_top5 += torch.sum((pred_labels[:, :2] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
-            test_bar.set_description('KNN Test Epoch: [{}/{}] Acc@1:{:.2f}% Acc@5:{:.2f}%'
+            test_bar.set_description('Test Epoch: [{}/{}] Acc@1:{:.2f}% Acc@2:{:.2f}%'
                                      .format(epoch, epochs, total_top1 / total_num * 100, total_top5 / total_num * 100))
 
     return total_top1 / total_num * 100, total_top5 / total_num * 100
@@ -120,8 +120,8 @@ if __name__ == '__main__':
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for latent vector')
     parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
-    parser.add_argument('--epochs', default=2, type=int, help='Number of sweeps over the dataset to train')
-    parser.add_argument('--dataset_name', default='sup', type=str, help='Choose dataset')
+    parser.add_argument('--epochs', default=5, type=int, help='Number of sweeps over the dataset to train')
+    parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
     parser.add_argument('--classes', default=(0,1,2), type=tuple, help='Choose subset')
 
 
