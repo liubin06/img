@@ -30,31 +30,33 @@ def get_negative_mask(batch_size):
 
 
 
-def criterion(out_1, out_2, batch_size, temperature):
+def criterion(out_1, out_2, batch_size, temperature, target):
     # neg score
+
     out = torch.cat([out_1, out_2], dim=0)
+    target = torch.cat([target, target], dim=0)
     scores = torch.exp(torch.mm(out, out.t().contiguous()) / temperature)
-    mask = get_negative_mask(batch_size).to(device)
-    neg = scores.masked_select(mask).view(2 * batch_size, -1)
-    Ng = neg.sum(dim=-1)
 
-    # pos score
-    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
-    pos = torch.cat([pos, pos], dim=0)
 
-    loss = (- torch.log(pos / (pos + Ng))).mean()
-    return loss
+    posmask = torch.logical_xor(target.unsqueeze(-1) == target, torch.eye(2 * batch_size).bool().to(device)) # [2bs, 2bs] 与锚点标签相同，包含增强，不包含自身，定义为正例
+    negmask = target.unsqueeze(-1) != target             #[2bs, 2bs] 与锚点标签不同，定义为负例
+
+    neg = (scores * negmask).sum(dim=-1,keepdim=True) #[2bs, 1]  #1 分母只包含不同类别
+    # neg = scores.sum(dim=-1, keepdim=True)  # [2bs, 1] #2 分母本包含所有样本
+    loss = - torch.log(scores / (scores + neg)) * posmask #[2bs, 2bs]
+    loss = loss.sum(dim=-1)/posmask.sum(dim=-1) #[2bs]
+    return loss.sum()
 
 
 def train(net, data_loader, train_optimizer, temperature):
     net.train()
     total_loss, total_num, train_bar = 0.0, 0, tqdm(data_loader)
     for pos_1, pos_2, target in train_bar:
-        pos_1, pos_2 = pos_1.to(device, non_blocking=True), pos_2.to(device, non_blocking=True)
+        pos_1, pos_2, target = pos_1.to(device, non_blocking=True), pos_2.to(device, non_blocking=True),target.to(device, non_blocking=True)
         feature_1, out_1 = net(pos_1)
         feature_2, out_2 = net(pos_2)
 
-        loss = criterion(out_1, out_2,  batch_size, temperature)
+        loss = criterion(out_1, out_2,  batch_size, temperature,target)
 
         train_optimizer.zero_grad()
         loss.backward()
@@ -76,7 +78,7 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
     c,k = len(subclasses),2
     with torch.no_grad():
         # generate feature bank
-        for data, target in tqdm(memory_data_loader):
+        for data, target in memory_data_loader:
             feature, out = net(data.cuda(non_blocking=True))
             feature_bank.append(feature)
         # [D, N]
@@ -122,7 +124,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--epochs', default=5, type=int, help='Number of sweeps over the dataset to train')
     parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
-    parser.add_argument('--classes', default=(0,1,2), type=tuple, help='Choose subset')
+    parser.add_argument('--classes', default=(0,1,2,3), type=tuple, help='Choose subset')
 
 
     # args parse

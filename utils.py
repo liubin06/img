@@ -58,6 +58,33 @@ class CIFARSuppair(CIFAR10):
     def get_labels(self,i):
         return [index for index in range(len(self.targets)) if self.targets[index] == i]
 
+class CIFARSup(CIFAR10):
+    # dataloader where pairs of positive samples are randomly sampled from pairs
+    # of inputs with the same label.
+    def __init__(self, root='../data', train=True,  classes=None, phase=None):
+        super().__init__(root=root, train=train)
+
+        selected_indices = [id for id in range(len(self.targets)) if self.targets[id] in classes]
+        self.data = self.data[selected_indices]
+        self.targets = [self.targets[id] for id in selected_indices]
+        self.phase = phase
+
+
+    def __getitem__(self, index):
+        img, target = self.data[index], self.targets[index]
+        if self.phase == 'train':
+            img = Image.fromarray(img)
+            pos1 = train_transform(img)
+            pos2 = train_transform(img)
+            return pos1, pos2, target
+        else:
+            pos = test_transform(img)
+            return pos, target
+
+
+
+
+
 class GaussianBlur(object):
     # Implements Gaussian blur as described in the SimCLR paper
     def __init__(self, kernel_size, min=0.1, max=2.0):
