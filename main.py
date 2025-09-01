@@ -115,17 +115,17 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
 
     return total_top1 / total_num * 100, total_top5 / total_num * 100
 
-def save_result(epoch,acc1,acc2):
+def save_result(epoch,acc1,acc2,train_loss):
     if not os.path.exists('../results'):
         os.makedirs('../results')
     acc = []
-    acc.append([acc1,acc2])
+    acc.append([acc1,acc2,train_loss])
     if epoch == epochs:
         np.savetxt('../results/{}acc.csv'.format(dataset_name), np.array(acc), delimiter=',', fmt='%.2f')
 
-    if epoch % 1 == 0:
+    if epoch % 50== 0:
         torch.save(model.state_dict(),
-                       '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+                       '../results/model/{}_{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train SimCLR')
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
         acc1, acc2 = test(model, memory_loader, test_loader,args.classes)
-        save_result(epoch, acc1, acc2)
+        save_result(epoch, acc1, acc2, train_loss)
 
 
 
