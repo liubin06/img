@@ -158,7 +158,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
 
     # training loop
-    acc = []
+    acc = ['acc1','acc2','loss']
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
         acc1, acc2 = test(model, memory_loader, test_loader, args.classes)
