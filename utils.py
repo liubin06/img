@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 
-class CIFARSelf(CIFAR10):
+class CIFARSup(CIFAR10):
     def __init__(self, root='../data', train=True,  classes = None, phase = None): #子类属性
         super().__init__(root=root, train=train)    #父类属性
         selected_indices = [id for id in range(len(self.targets)) if self.targets[id] in classes]
@@ -58,28 +58,6 @@ class CIFARSuppair(CIFAR10):
     def get_labels(self,i):
         return [index for index in range(len(self.targets)) if self.targets[index] == i]
 
-class CIFARSup(CIFAR10):
-    # dataloader where pairs of positive samples are randomly sampled from pairs
-    # of inputs with the same label.
-    def __init__(self, root='../data', train=True,  classes=None, phase=None):
-        super().__init__(root=root, train=train)
-
-        selected_indices = [id for id in range(len(self.targets)) if self.targets[id] in classes]
-        self.data = self.data[selected_indices]
-        self.targets = [self.targets[id] for id in selected_indices]
-        self.phase = phase
-
-
-    def __getitem__(self, index):
-        img, target = self.data[index], self.targets[index]
-        if self.phase == 'train':
-            img = Image.fromarray(img)
-            pos1 = train_transform(img)
-            pos2 = train_transform(img)
-            return pos1, pos2, target
-        else:
-            pos = test_transform(img)
-            return pos, target
 
 
 
@@ -120,10 +98,10 @@ test_transform = transforms.Compose([
 
 
 def get_dataset(dataset_name, classes, root='../data'):
-    if dataset_name == 'self':
-        train_data = CIFARSelf(root=root, train=True, classes=classes, phase='train')
-        memory_data = CIFARSelf(root=root, train=True, classes=classes, phase='test')
-        test_data = CIFARSelf(root=root, train=False, classes=classes, phase='test')
+    if dataset_name == 'sup':
+        train_data = CIFARSup(root=root, train=True, classes=classes, phase='train')
+        memory_data = CIFARSup(root=root, train=True, classes=classes, phase='test')
+        test_data = CIFARSup(root=root, train=False, classes=classes, phase='test')
 
     elif dataset_name == 'suppair':
         train_data = CIFARSuppair(root=root, train=True, classes=classes,phase='train')

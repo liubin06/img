@@ -115,13 +115,12 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
 
     return total_top1 / total_num * 100, total_top5 / total_num * 100
 
-def save_result(epoch,acc1,acc2,train_loss):
+def save_result(epoch, acc, acc1,acc2,train_loss):
     if not os.path.exists('../results'):
         os.makedirs('../results')
-    acc = []
     acc.append([acc1,acc2,train_loss])
     if epoch == epochs:
-        np.savetxt('../results/{}acc.csv'.format(dataset_name), np.array(acc), delimiter=',', fmt='%.2f')
+        np.savetxt('../results/{}/acc.csv'.format(dataset_name), np.array(acc), delimiter=',', fmt='%.2f')
 
     if epoch % 50== 0:
         torch.save(model.state_dict(),
@@ -133,9 +132,9 @@ if __name__ == '__main__':
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for latent vector')
     parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
-    parser.add_argument('--epochs', default=400, type=int, help='Number of sweeps over the dataset to train')
-    parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
-    parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
+    parser.add_argument('--epochs', default=2, type=int, help='Number of sweeps over the dataset to train')
+    parser.add_argument('--dataset_name', default='sup', type=str, help='Choose dataset')
+    parser.add_argument('--classes', default=(0,1), type=tuple, help='Choose subset')
 
 
     # args parse
@@ -159,12 +158,11 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
 
     # training loop
-
     acc = []
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
-        acc1, acc2 = test(model, memory_loader, test_loader,args.classes)
-        save_result(epoch, acc1, acc2, train_loss)
+        acc1, acc2 = test(model, memory_loader, test_loader, args.classes)
+        save_result(epoch,acc, acc1, acc2, train_loss)
 
 
 
