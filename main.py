@@ -8,27 +8,17 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torchvision.datasets import STL10,CIFAR10
 from tqdm import tqdm
 from datetime import datetime
 from sklearn.metrics import roc_auc_score
-import random
+import linear
 
 import utils
 from model import Model
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Home device: {}'.format(device))
-
-def get_negative_mask(batch_size):
-    negative_mask = torch.ones((batch_size, 2 * batch_size), dtype=bool)
-    for i in range(batch_size):
-        negative_mask[i, i] = 0
-        negative_mask[i, i + batch_size] = 0
-
-    negative_mask = torch.cat((negative_mask, negative_mask), 0)
-    return negative_mask
-
-
 
 def criterion(out_1, out_2, batch_size, temperature, target):
     # neg score
@@ -43,7 +33,7 @@ def criterion(out_1, out_2, batch_size, temperature, target):
 
     neg = (scores * negmask).sum(dim=-1,keepdim=True) #[2bs, 1]  #1 分母只包含不同类别
     # neg = scores.sum(dim=-1, keepdim=True)  # [2bs, 1] #2 分母本包含所有样本
-    loss = - torch.log(scores / (scores + neg)) * posmask #[2bs, 2bs]
+    loss = - torch.log(scores /  neg) * posmask #[2bs, 2bs]
     loss = loss.sum(dim=-1)/posmask.sum(dim=-1) #[2bs]
     return loss.sum()
 
@@ -120,21 +110,24 @@ def save_result(epoch, acc, acc1,acc2,train_loss):
         os.makedirs('../results')
     acc.append([acc1,acc2,train_loss])
     if epoch == epochs:
-        np.savetxt('../results/{}/acc.csv'.format(dataset_name), np.array(acc), delimiter=',', fmt='%.2f')
+        np.savetxt('../results/{}/{}_{}_acc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
 
     if epoch % 50== 0:
         torch.save(model.state_dict(),
-                       '../results/model/{}_{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+                       '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train SimCLR')
     parser.add_argument('--root', type=str, default='../data', help='Path to data directory')
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for latent vector')
-    parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
+    parser.add_argument('--temperature', default=0.1, type=float, help='Temperature used in softmax')
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
-    parser.add_argument('--epochs', default=2, type=int, help='Number of sweeps over the dataset to train')
+    parser.add_argument('--epochs', default=400, type=int, help='Number of sweeps over the dataset to train')
     parser.add_argument('--dataset_name', default='sup', type=str, help='Choose dataset')
-    parser.add_argument('--classes', default=(0,1), type=tuple, help='Choose subset')
+    parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
 
 
     # args parse
@@ -158,7 +151,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
 
     # training loop
-    acc = ['acc1','acc2','loss']
+    acc = []
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
         acc1, acc2 = test(model, memory_loader, test_loader, args.classes)

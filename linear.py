@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torchvision.datasets import STL10
+from torchvision.datasets import STL10,CIFAR10
 from tqdm import tqdm
 
 import utils
@@ -51,9 +51,9 @@ def train_val(net, data_loader, train_optimizer):
             total_loss += loss.item() * data.size(0)
             prediction = torch.argsort(out, dim=-1, descending=True)
             total_correct_1 += torch.sum((prediction[:, 0:1] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
-            total_correct_5 += torch.sum((prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
+            total_correct_5 += torch.sum((prediction[:, 0:2] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
 
-            data_bar.set_description('{} Epoch: [{}/{}] Loss: {:.4f} ACC@1: {:.2f}% ACC@5: {:.2f}%'
+            data_bar.set_description('{} Epoch: [{}/{}] Loss: {:.4f} ACC@1: {:.2f}% ACC@2: {:.2f}%'
                                      .format('Train' if is_train else 'Test', epoch, epochs, total_loss / total_num,
                                              total_correct_1 / total_num * 100, total_correct_5 / total_num * 100))
 
@@ -62,16 +62,16 @@ def train_val(net, data_loader, train_optimizer):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Linear Evaluation')
-    parser.add_argument('--model_path', type=str, default='../results/model_400.pth',
+    parser.add_argument('--model_path', type=str, default=r'D:\python\results\sup\0.1_128_model_400.pth',
                         help='The pretrained model path')
     parser.add_argument('--batch_size', type=int, default=512, help='Number of images in each mini-batch')
     parser.add_argument('--epochs', type=int, default=100, help='Number of sweeps over the dataset to train')
 
     args = parser.parse_args()
     model_path, batch_size, epochs = args.model_path, args.batch_size, args.epochs
-    train_data = STL10(root='data', split='train', transform=utils.train_transform)
+    train_data = CIFAR10(root='../data', train=True, transform=utils.train_transform)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
-    test_data = STL10(root='data', split='test', transform=utils.test_transform)
+    test_data = CIFAR10(root='../data', train=False, transform=utils.test_transform)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     model = Net(num_class=len(train_data.classes), pretrained_path=model_path).cuda()
