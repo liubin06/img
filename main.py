@@ -19,22 +19,11 @@ from model import Model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Home device: {}'.format(device))
 
-def get_negative_mask(batch_size):
-    negative_mask = torch.ones((batch_size, 2 * batch_size), dtype=bool)
-    for i in range(batch_size):
-        negative_mask[i, i] = 0
-        negative_mask[i, i + batch_size] = 0
-
-    negative_mask = torch.cat((negative_mask, negative_mask), 0)
-    return negative_mask
-
-
-
 def criterion(out_1, out_2, batch_size, temperature):
     # neg score
     out = torch.cat([out_1, out_2], dim=0)
     scores = torch.exp(torch.mm(out, out.t().contiguous()) / temperature)
-    mask = get_negative_mask(batch_size).to(device)
+    mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
     Ng = neg.sum(dim=-1)
 
@@ -53,9 +42,7 @@ def train(net, data_loader, train_optimizer, temperature):
         pos_1, pos_2 = pos_1.to(device, non_blocking=True), pos_2.to(device, non_blocking=True)
         feature_1, out_1 = net(pos_1)
         feature_2, out_2 = net(pos_2)
-
         loss = criterion(out_1, out_2,  batch_size, temperature)
-
         train_optimizer.zero_grad()
         loss.backward()
         train_optimizer.step()
@@ -113,6 +100,18 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
 
     return total_top1 / total_num * 100, total_top5 / total_num * 100
 
+def save_result(epoch, acc1,acc2, train_loss):
+    acc =[]
+    if not os.path.exists('../results'):
+        os.makedirs('../results')
+    acc.append([acc1,acc2,train_loss])
+    if epoch == epochs:
+        np.savetxt('../results/{}/{}_{}_acc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
+
+    if epoch % 50== 0:
+        torch.save(model.state_dict(),
+                       '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train SimCLR')
@@ -122,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--epochs', default=5, type=int, help='Number of sweeps over the dataset to train')
     parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
-    parser.add_argument('--classes', default=(0,1,2), type=tuple, help='Choose subset')
+    parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
 
 
     # args parse
@@ -151,9 +150,5 @@ if __name__ == '__main__':
 
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
-        accuracy = test(model, memory_loader, test_loader,args.classes)
-
-        if epoch >= 300:
-            if epoch % 20 == 0:
-                torch.save(model.state_dict(),
-                           '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, dataset_name,  batch_size, epoch))
+        acc1, acc2 = test(model, memory_loader, test_loader, args.classes)
+        save_result(epoch, acc1, acc2, train_loss)
