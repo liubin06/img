@@ -64,12 +64,8 @@ test_transform = transforms.Compose([
 
 
 def get_dataset(dataset_name, classes, root='../data'):
-    if dataset_name == 'self':
-        train_data = CIFARSelf(root=root, train=True, classes=classes, phase='train')
-        memory_data = CIFARSelf(root=root, train=True, classes=classes, phase='test')
-        test_data = CIFARSelf(root=root, train=False, classes=classes, phase='test')
-
-    else:
-        raise Exception('Invalid dataset name')
+    train_data = CIFARSelf(root=root, train=True, classes=classes, phase='train')
+    memory_data = CIFARSelf(root=root, train=True, classes=classes, phase='test')
+    test_data = CIFARSelf(root=root, train=False, classes=classes, phase='test')
 
     return train_data, memory_data, test_data

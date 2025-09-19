@@ -19,17 +19,28 @@ from model import Model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Home device: {}'.format(device))
 
+def SumT(cos,batch_size):
+    sum = torch.topk(cos, k=int(0.2 * batch_size), dim=1).values.sum(dim=1)
+    t = 0.5 - 0.4 * (sum - sum.min()) / (sum.max() - sum.min())
+    return t.view(-1,1)
+
+
 def criterion(out_1, out_2, batch_size, temperature):
     # neg score
     out = torch.cat([out_1, out_2], dim=0)
-    scores = torch.exp(torch.mm(out, out.t().contiguous()) / temperature)
+    cos = torch.mm(out, out.t().contiguous())
+    if epoch >= 100:
+        t = SumT (cos, batch_size)
+    else:
+        t = 0.5
+    scores = torch.exp(cos / t)
     mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
     Ng = neg.sum(dim=-1)
 
     # pos score
-    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
-    pos = torch.cat([pos, pos], dim=0)
+    pos = torch.sum(out_1 * out_2, dim=-1)
+    pos = torch.exp(torch.cat([pos,pos],dim=0) / t)
 
     loss = (- torch.log(pos / (pos + Ng))).mean()
     return loss
@@ -106,11 +117,11 @@ def save_result(epoch, acc1,acc2, train_loss):
         os.makedirs('../results')
     acc.append([acc1,acc2,train_loss])
     if epoch == epochs:
-        np.savetxt('../results/{}/{}_{}_acc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
+        np.savetxt('../results/{}/{}_{}_warmacc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
 
     if epoch % 50== 0:
         torch.save(model.state_dict(),
-                       '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+                       '../results/{}/{}_{}_warmmodel_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
 
 
 if __name__ == '__main__':
@@ -119,8 +130,8 @@ if __name__ == '__main__':
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for latent vector')
     parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
-    parser.add_argument('--epochs', default=5, type=int, help='Number of sweeps over the dataset to train')
-    parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
+    parser.add_argument('--epochs', default=400, type=int, help='Number of sweeps over the dataset to train')
+    parser.add_argument('--dataset_name', default='selfSum', type=str, help='Choose dataset')
     parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
 
 
