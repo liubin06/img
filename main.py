@@ -20,8 +20,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Home device: {}'.format(device))
 
 def SumT(cos,batch_size):
-    sum = torch.topk(cos, k=int(0.2 * batch_size), dim=1).values.sum(dim=1)
-    t = 0.5 - 0.4 * (sum - sum.min()) / (sum.max() - sum.min())
+    with torch.no_grad():
+        sum = torch.topk(cos, k=int(0.2 * batch_size), dim=1).values.sum(dim=1)
+        t = 0.1 + 0.4 * (sum - sum.min()) / (sum.max() - sum.min())
     return t.view(-1,1)
 
 
@@ -32,7 +33,7 @@ def criterion(out_1, out_2, batch_size, temperature):
     if epoch >= 100:
         t = SumT (cos, batch_size)
     else:
-        t = 0.5
+        t = 0.1
     scores = torch.exp(cos / t)
     mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
