@@ -25,15 +25,21 @@ def SumT(cos,batch_size):
         t = 0.1 + 0.4 * (sum - sum.min()) / (sum.max() - sum.min())
     return t.view(-1,1)
 
+def VarT(cos,batch_size):
+    with torch.no_grad():
+        var = torch.var(cos, dim=1, unbiased=True)
+        t = 0.5 - 0.4 * (var - var.min()) / (var.max() - var.min())
+    return t.view(-1, 1)
+
 
 def criterion(out_1, out_2, batch_size, temperature):
     # neg score
     out = torch.cat([out_1, out_2], dim=0)
     cos = torch.mm(out, out.t().contiguous())
-    if epoch >= 100:
+    if epoch % 2 == 1:
         t = SumT (cos, batch_size)
     else:
-        t = 0.1
+        t = 0.5
     scores = torch.exp(cos / t)
     mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
@@ -117,7 +123,7 @@ def save_result(epoch, acc1,acc2, train_loss):
     if not os.path.exists('../results'):
         os.makedirs('../results')
     acc.append([acc1,acc2,train_loss])
-    if epoch == epochs:
+    if epoch % 1 ==  0:
         np.savetxt('../results/{}/{}_{}_warmacc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
 
     if epoch % 50== 0:
