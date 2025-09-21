@@ -118,8 +118,7 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
 
     return total_top1 / total_num * 100, total_top5 / total_num * 100
 
-def save_result(epoch, acc1,acc2, train_loss):
-    acc =[]
+def save_result(epoch, acc,acc1,acc2, train_loss):
     if not os.path.exists('../results'):
         os.makedirs('../results')
     acc.append([acc1,acc2,train_loss])
@@ -165,8 +164,8 @@ if __name__ == '__main__':
     # training loop
     if not os.path.exists('../results/{}'.format(dataset_name)):
         os.makedirs('../results/{}'.format(dataset_name))
-
+    acc = []
     for epoch in range(1, epochs + 1):
         train_loss = train(model, train_loader, optimizer, temperature)
         acc1, acc2 = test(model, memory_loader, test_loader, args.classes)
-        save_result(epoch, acc1, acc2, train_loss)
+        save_result(epoch, acc, acc1, acc2, train_loss)
