@@ -28,26 +28,31 @@ def SumT(cos,batch_size):
 def VarT(cos,batch_size):
     with torch.no_grad():
         var = torch.var(cos, dim=1, unbiased=True)
-        t = 0.5 - 0.4 * (var - var.min()) / (var.max() - var.min())
+        t = 0.1 + 0.4 * (var - var.min()) / (var.max() - var.min())
     return t.view(-1, 1)
+
+def VarDT(cos,batch_size):
+    with torch.no_grad():
+        var = torch.var(cos, dim=1, unbiased=True)
+        tpos = 0.1 + 0.4 * (var - var.min()) / (var.max() - var.min())
+        tneg = 0.5 - 0.4 * (var - var.min()) / (var.max() - var.min())
+    return tpos.view(-1, 1), tneg.view(-1, 1)
 
 
 def criterion(out_1, out_2, batch_size, temperature):
     # neg score
     out = torch.cat([out_1, out_2], dim=0)
     cos = torch.mm(out, out.t().contiguous())
-    if epoch % 2 == 1:
-        t = SumT (cos, batch_size)
-    else:
-        t = 0.5
-    scores = torch.exp(cos / t)
+
+    tpos,tneg = VarDT (cos, batch_size)
+    scores = torch.exp(cos / tneg)
     mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
     Ng = neg.sum(dim=-1)
 
     # pos score
     pos = torch.sum(out_1 * out_2, dim=-1)
-    pos = torch.exp(torch.cat([pos,pos],dim=0) / t)
+    pos = torch.exp(torch.cat([pos,pos],dim=0) / tpos)
 
     loss = (- torch.log(pos / (pos + Ng))).mean()
     return loss
@@ -123,11 +128,11 @@ def save_result(epoch, acc,acc1,acc2, train_loss):
         os.makedirs('../results')
     acc.append([acc1,acc2,train_loss])
     if epoch % 1 ==  0:
-        np.savetxt('../results/{}/{}_{}_warmacc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
+        np.savetxt('../results/{}/{}_{}_DT+-acc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
 
     if epoch % 50== 0:
         torch.save(model.state_dict(),
-                       '../results/{}/{}_{}_warmmodel_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+                       '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
 
 
 if __name__ == '__main__':
@@ -137,7 +142,7 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--epochs', default=400, type=int, help='Number of sweeps over the dataset to train')
-    parser.add_argument('--dataset_name', default='selfSum', type=str, help='Choose dataset')
+    parser.add_argument('--dataset_name', default='selfVar', type=str, help='Choose dataset')
     parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
 
 

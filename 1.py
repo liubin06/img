@@ -12,4 +12,4 @@ scores = a / t.view(-1,1)
 a = torch.randn(5)
 def p(loss):
     return math.exp(-loss)
-print(p(5),p(4),p(3),p(2),p(1))
+print(p(5),p(4),p(3),p(2),p(1),p(3.73))
