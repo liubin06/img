@@ -25,34 +25,40 @@ def criterion(out_1, out_2, batch_size, temperature):
     scores = torch.exp(torch.mm(out, out.t().contiguous()) / temperature)
     mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
+    negmean, negvar  = neg.mean(), neg.var(dim=-1).mean()
     Ng = neg.sum(dim=-1)
 
     # pos score
     pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
+    posmean, posvar = pos.mean(), pos.var()
     pos = torch.cat([pos, pos], dim=0)
 
     loss = (- torch.log(pos / (pos + Ng))).mean()
-    return loss
+    return loss, posmean, posvar,negmean, negvar
 
 
 def train(net, data_loader, train_optimizer, temperature):
     net.train()
-    total_loss, total_num, train_bar = 0.0, 0, tqdm(data_loader)
+    total_loss, total_posmean, total_posvar, total_negmean, total_negvar, total_num, train_bar = 0.0,0.0,0.0,0.0,0.0, 0, tqdm(data_loader)
     for pos_1, pos_2, target in train_bar:
         pos_1, pos_2 = pos_1.to(device, non_blocking=True), pos_2.to(device, non_blocking=True)
         feature_1, out_1 = net(pos_1)
         feature_2, out_2 = net(pos_2)
-        loss = criterion(out_1, out_2,  batch_size, temperature)
+        loss, posmean, posvar,negmean, negvar = criterion(out_1, out_2,  batch_size, temperature)
         train_optimizer.zero_grad()
         loss.backward()
         train_optimizer.step()
 
         total_num += batch_size
         total_loss += loss.item() * batch_size
+        total_posmean += posmean.item() * batch_size
+        total_posvar += posvar.item() * batch_size
+        total_negmean += negmean.item() * batch_size
+        total_negvar += negvar.item() * batch_size
 
         train_bar.set_description('Train Epoch: [{}/{}] Loss: {:.4f}'.format(epoch, epochs, total_loss / total_num))
 
-    return total_loss / total_num
+    return total_loss / total_num , total_posmean / total_num, total_posvar/ total_num, total_negmean / total_num, total_negvar/ total_num
 
 
 
@@ -100,17 +106,43 @@ def test(net, memory_data_loader, test_data_loader,subclasses):
 
     return total_top1 / total_num * 100, total_top5 / total_num * 100
 
-def save_result(epoch, acc1,acc2, train_loss):
-    acc =[]
-    if not os.path.exists('../results'):
-        os.makedirs('../results')
-    acc.append([acc1,acc2,train_loss])
-    if epoch == epochs:
-        np.savetxt('../results/{}/{}_{}_acc.csv'.format(dataset_name, temperature, batch_size), np.array(acc), delimiter=',', fmt='%.2f')
 
-    if epoch % 50== 0:
-        torch.save(model.state_dict(),
-                       '../results/{}/{}_{}_model_{}.pth'.format(dataset_name, temperature, batch_size, epoch))
+def save_result(epoch, acc1, acc2, train_loss, posmean, posvar, negmean, negvar,
+                dataset_name, temperature, batch_size, model):
+    def to_scalar(x):
+        if hasattr(x, 'item'):  # 处理PyTorch张量
+            return x.item()
+        return x
+
+    # 转换所有数值为标量
+    acc1 = to_scalar(acc1)
+    acc2 = to_scalar(acc2)
+    train_loss = to_scalar(train_loss)
+    posmean = to_scalar(posmean)
+    posvar = to_scalar(posvar)
+    negmean = to_scalar(negmean)
+    negvar = to_scalar(negvar)
+
+    # 创建结果目录（确保路径不存在则创建）
+    result_dir = f'../results/{dataset_name}'
+    os.makedirs(result_dir, exist_ok=True)
+
+    # 数据存储逻辑
+    if epoch == 1:  # 首次运行时创建文件并写入表头
+        with open(f'{result_dir}/{temperature}_{batch_size}_acc.csv', 'w') as f:
+            f.write('epoch,acc1,acc2,train_loss,posmean,posvar,negmean,negvar\n')
+
+    # 追加当前轮次数据
+    with open(f'{result_dir}/{temperature}_{batch_size}_acc.csv', 'a') as f:
+        f.write(f'{epoch},{acc1:.2f},{acc2:.2f},{train_loss:.2f},'
+                f'{posmean:.2f},{posvar:.2f},{negmean:.2f},{negvar:.2f}\n')
+
+    # 每50轮保存模型
+    if epoch % 50 == 0:
+        torch.save(
+            model.state_dict(),
+            f'{result_dir}/{temperature}_{batch_size}_model_{epoch}.pth'
+        )
 
 
 if __name__ == '__main__':
@@ -119,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for latent vector')
     parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
     parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
-    parser.add_argument('--epochs', default=5, type=int, help='Number of sweeps over the dataset to train')
+    parser.add_argument('--epochs', default=400, type=int, help='Number of sweeps over the dataset to train')
     parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
     parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
 
@@ -149,6 +181,6 @@ if __name__ == '__main__':
         os.makedirs('../results/{}'.format(dataset_name))
 
     for epoch in range(1, epochs + 1):
-        train_loss = train(model, train_loader, optimizer, temperature)
+        train_loss, posmean, posvar,negmean, negvar = train(model, train_loader, optimizer, temperature)
         acc1, acc2 = test(model, memory_loader, test_loader, args.classes)
-        save_result(epoch, acc1, acc2, train_loss)
+        save_result(epoch, acc1, acc2, train_loss, posmean, posvar, negmean, negvar,dataset_name, temperature, batch_size, model)
