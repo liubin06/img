@@ -22,16 +22,18 @@ print('Home device: {}'.format(device))
 def criterion(out_1, out_2, batch_size, temperature):
     # neg score
     out = torch.cat([out_1, out_2], dim=0)
-    scores = torch.exp(torch.mm(out, out.t().contiguous()) / temperature)
+    scores = torch.mm(out, out.t().contiguous())
     mask = ~torch.eye(batch_size, dtype=bool).to(device).repeat(2,2)
     neg = scores.masked_select(mask).view(2 * batch_size, -1)
-    negmean, negvar  = neg.mean(), neg.var(dim=-1).mean()
-    Ng = neg.sum(dim=-1)
+    pos = torch.sum(out_1 * out_2, dim=-1)
+    with torch.no_grad():
+        negmean, negvar  = neg.mean(), neg.var(dim=-1).mean()
+        posmean, posvar = pos.mean(), pos.var()
 
-    # pos score
-    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
-    posmean, posvar = pos.mean(), pos.var()
-    pos = torch.cat([pos, pos], dim=0)
+    neg = torch.exp(neg/temperature)
+    Ng = neg.sum(dim=-1)               #[2bs]
+    pos = torch.exp(pos/temperature)
+    pos = torch.cat([pos, pos], dim=0) #[2bs]
 
     loss = (- torch.log(pos / (pos + Ng))).mean()
     return loss, posmean, posvar,negmean, negvar
@@ -149,8 +151,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train SimCLR')
     parser.add_argument('--root', type=str, default='../data', help='Path to data directory')
     parser.add_argument('--feature_dim', default=128, type=int, help='Feature dim for latent vector')
-    parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
-    parser.add_argument('--batch_size', default=128, type=int, help='Number of images in each mini-batch')
+    parser.add_argument('--temperature', default=0.1, type=float, help='Temperature used in softmax')
+    parser.add_argument('--batch_size', default=256, type=int, help='Number of images in each mini-batch')
     parser.add_argument('--epochs', default=400, type=int, help='Number of sweeps over the dataset to train')
     parser.add_argument('--dataset_name', default='self', type=str, help='Choose dataset')
     parser.add_argument('--classes', default=(0,1,2,3,4,5,6,7,8,9), type=tuple, help='Choose subset')
